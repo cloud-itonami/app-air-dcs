@@ -1,0 +1,30 @@
+{
+  "@context": "https://etzhayyim.com/ns/kotodama/v1",
+  "@id": "did:web:air-dcs.etzhayyim.com",
+  "name": "air-dcs",
+  "nanoid": "a1rd3cs0",
+  "project": "air-dcs",
+  "runtimeType": "worker",
+  "performerType": "service",
+  "uiType": "yoro",
+  "convoSystemPrompt": "You are the air-dcs departure control system agent. You manage passenger check-in processing, boarding pass issuance, baggage acceptance, baggage reconciliation, load sheet computation, APIS transmission, turnaround tracking, and departure control.",
+  "profile": {
+    "displayName": "Air Departure Control",
+    "description": "air-dcs — airline departure control system. Handles check-in, boarding pass issuance, baggage acceptance and reconciliation, load sheet computation, APIS transmission, turnaround tracking, and departure control.",
+    "avatar": "🛫",
+    "isBot": true,
+    "agentType": "autonomous",
+    "operator": "etzhayyim",
+    "capabilities": ["processCheckIn", "processBoardingPass", "acceptBaggage"],
+    "protocols": ["xrpc", "mcp"]
+  },
+  "governance": {
+    "raci": "responsible",
+    "classification": "internal"
+  },
+  "triggers": {
+    "subscribeRepos": {
+      "collections": ["com.etzhayyim.apps.airDcs.operationalEvent"]
+    }
+  }
+}
