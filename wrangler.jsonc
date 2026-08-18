@@ -1,29 +1,28 @@
 {
   "name": "kotodama-a1rd3cs0",
-  "main": "svelte/.svelte-kit/cloudflare/_worker.js",
+  // Compiled from src/air_dcs/worker.cljs by shadow-cljs (:target :esm).
+  // Before the cljs migration this pointed at svelte/.svelte-kit/cloudflare/_worker.js
+  // -- a path with zero matching tracked files, which nothing in the tree builds --
+  // while src/app.ts, the file that read like the application, was referenced by no
+  // tracked file at all. See docs/adr/0001.
+  "main": "dist/worker.js",
   "compatibility_date": "2025-03-17",
-  "compatibility_flags": [
-    "nodejs_compat",
-    "nodejs_als"
-  ],
+  // nodejs_compat / nodejs_als were @sveltejs/adapter-cloudflare's requirement.
+  // They are gone: the :esm bundle reaches for no node builtin, and it was run
+  // under workerd without them (docs/operator-quickstart.md S4.6).
   "vars": {
     "APP_CAPABILITIES": "[\"processCheckIn\",\"processBoardingPass\",\"acceptBaggage\"]",
     "APP_DESCRIPTION": "air-dcs — airline departure control system. Handles check-in, boarding pass issuance, baggage acceptance and reconciliation, load sheet computation, APIS transmission, turnaround tracking, and departure control.",
     "APP_DISPLAY_NAME": "Air Departure Control",
-    "APP_FRAMEWORK": "sveltekit-edge-bff",
+    "APP_FRAMEWORK": "cljs-esm-worker",
     "APP_NANOID": "a1rd3cs0",
     "APP_PERFORMER_TYPE": "service",
     "APP_UI_TYPE": "yoro",
     "AGENTGATEWAY_MCP_ROUTER_URL": "https://mcp.etzhayyim.com/xrpc/com.etzhayyim.mcp.message"
   },
-  "rules": [
-    {
-      "type": "CompiledWasm",
-      "globs": [
-        "**/*.wasm"
-      ]
-    }
-  ],
+  // The CompiledWasm rule matched **/*.wasm in a tree with zero .wasm files, and
+  // the assets block served ./svelte/.svelte-kit/cloudflare/client, which the
+  // migration deleted the producer of. Both are gone.
   "routes": [
     {
       "pattern": "a1rd3cs0.etzhayyim.com/*",
@@ -33,11 +32,5 @@
       "pattern": "air-dcs.etzhayyim.com/*",
       "zone_name": "etzhayyim.com"
     }
-  ],
-  "assets": {
-    "directory": "./svelte/.svelte-kit/cloudflare/client",
-    "binding": "ASSETS",
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "none"
-  }
+  ]
 }

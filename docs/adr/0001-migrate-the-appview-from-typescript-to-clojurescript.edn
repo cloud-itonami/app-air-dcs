@@ -1,0 +1,170 @@
+[{:db/id -1
+  :adr/id "app-air-dcs-0001"
+  :adr/title "appview を TypeScript/Svelte から ClojureScript へ移す"
+  :adr/status "accepted"
+  :adr/date "2026-08-18"
+  :adr/doc_type "adr"
+  :adr/source-format "edn"
+  :adr/body "
+# ADR-0001: appview を TypeScript/Svelte から ClojureScript へ移す
+
+**Status**: accepted / **Date**: 2026-08-18 / **Deciders**: Jun Kawasaki
+
+## Context
+
+移行前のこの repo は、appview を 3 通りに書いていた。実測（2026-08-18、`70e5a76`）:
+
+1. `svelte/` —— SvelteKit BFF。`wrangler.jsonc` の `main` が指す**唯一**の実装。
+2. `src/app.ts` —— 8 メソッドの edge dispatcher。**tracked file のどれからも
+   参照されていない**（`git grep 'app.ts'` の当たりは `README.md` 6 件と
+   `docs/operator-quickstart.md` 5 件だけ、つまり散文のみ）。root の
+   `package.json` が持つ script は `tsc --noEmit` 1 本きりで、root に
+   `tsconfig.json` は無いので入力ゼロで終わる。
+3. `kotoba/` —— TypeScript の参照実装スライス。deploy されるどのコードも
+   import していない。
+
+そして 1 の `main` が指す先 `svelte/.svelte-kit/cloudflare/_worker.js` は
+**tree に無い**（`.svelte-kit` / `_worker` に一致する tracked file は **0 件**、
+ディレクトリも存在しない）。つまり *deploy される handler* と *読み手が開く
+ファイル* が別で、後者はどの bundle にも入っていなかった。
+
+加えて、deploy されていた landing page（`svelte/src/routes/+page.svelte`）は
+`routeCount: 0` / `routes: []` / `vars: []` を **literal で焼いて**おり、隣の
+`wrangler.jsonc` が route 2・var 8・capability 3 を宣言していることに気づけない
+まま『No public route is declared next to this app surface.』と印字し、自分の
+パスを抽出元モノレポの `60-apps/etzhayyim-project-air-dcs/…` と名乗っていた。
+
+このワークスペースの正本言語は cljs と kotoba であって TypeScript ではない
+（superproject CLAUDE.md の runtime 順序 kotoba wasm > clojurewasm >
+ClojureScript > nbb）。候補の 2 つはどちらも TypeScript なので、**どちらを
+選んでも正本には着地しない。**
+
+## Decision
+
+**appview を ClojureScript に移し、appview の TypeScript と Svelte を撤去する。**
+
+    src/air_dcs/route.cljc    判断（どの handler が答えるか）
+    src/air_dcs/view.cljc     ページ（jp-go-dds の hiccup）
+    src/air_dcs/worker.cljs   Request/Response に触る唯一の層
+            ↓ shadow-cljs :target :esm
+    dist/worker.js            wrangler.jsonc の main が指すもの
+
+先例は同じ org の `cloud-itonami/app-lo` / `app-ongakuka` / `app-analytics` /
+`app-cowork` / `app-po`、および `cloud-itonami-marketplace-listing`。
+
+入口を `.kotoba` ではなく cljs に置くのは ADR-2606290000 の判断で、kotoba の
+ingress capability が `:native-aot` / `:wasm-aot` とも pending だからである。
+判断を `.cljc` に切り出してあるのは、ブラウザもビルドも無しにテストするためで
+あり、ingress が qualify した時に最初に `.kotoba` へ移る部分だからでもある。
+
+### これで消えた欠陥
+
+- 「deploy される handler と読むファイルが別」は**構造的に**消えた。`main` が
+  指す bundle は `src/` からコンパイルされる。検証器が shadow の出力先・
+  wrangler の `main`・export の ns 名の 3 つが噛み合うことを検査する。
+- 「ページが隣の config と矛盾する」も**構造的に**消えた。ページは route 表
+  （`air-dcs.route/routes`）と `APP_CAPABILITIES` を**引数で受け取って**描く。
+  表示と実際に答えるものが同じ 1 つの値から出る。
+
+## `kotoba/` は移していない（移行対象外）
+
+`kotoba/` は air-dcs の記録層の参照実装スライスで、`@etzhayyim/sdk` に依存する
+TypeScript 5 本（`registry.ts` 23,507 バイトを含む）と 10 本のテストからなる。
+**appview ではない** —— `wrangler.jsonc` はこれを bundle にも `main` にも含めず、
+appview のどのファイルも require していない。**appview ではないので、この移行の対象ではない** —— 撤去の基準は
+「動かない経路か」であって「TypeScript か」ではない。当てて測った結果:
+bundle に **0 件**、移行が置き換えた 3 本のどれからも import **0 件**、依存
+（`@etzhayyim/sdk` / `sdk-mock`）は `git ls-remote` が HEAD を返す、そして
+**tree の 31.9%（51,399 / 161,296 バイト）**。動かない経路ではないので、
+ここは **1 バイトも触っていない**（7 ファイルの sha256 と、`.ts` 5 本 / 総数 7 の
+本数を検証器に固定）。同型の先例
+`cloud-itonami/app-analytics` / `app-cowork` も同じ扱いにしている。
+
+cljs へ移すなら `@etzhayyim/sdk` の型面ごと別の決定が要る。そのとき最初に
+直すべきものは README が測って記録している **2 つの盲目のテスト**（旅券番号を
+守っているはずの assertion が、その関数が書かないコレクションを数えている）で
+あって、言語ではない。
+
+## 持ち越さなかった経路（黙って消していない）
+
+`src/app.ts` にあって**どこにも deploy されていなかった**もののうち:
+
+| 経路 | 移さなかった測定上の理由 |
+|---|---|
+| `/xrpc/<nsid>` → `dispatcher.etzhayyim.com` 中継 | 既定の宛先が **NXDOMAIN**（1.1.1.1、2026-08-18）。かつ `DISPATCHER_URL` / `DISPATCHER_INTERNAL_SECRET` は `wrangler.jsonc` の vars 8 個に**無い** —— 移しても `x-internal-secret: \"\"` を送るだけの経路になる |
+| `GET /_app/meta` | `/health` の別名。`/_app/` は SvelteKit の内部名前空間で、残す理由が無い。移行後も 404（テストと smoke の両方で固定） |
+| NSID prefix の allowlist（`NSID_PREFIX` 検査） | **deploy されていた route はこれを持っていない**。足すのは移行ではなく新しい方針である。ページは宣言された 3 メソッドを「宣言」として表示し、「許可リスト」とは書かない |
+| `/health` payload の `bpmn:` / `methods:` 8 本 | `methods` は `app.ts` 自身が routing に使っていない飾りだった（README）。`bpmn` は抽出元モノレポのパス |
+
+**動かない経路を移植して「移行済み」と言わないため**である。
+
+## 移行で意図的に変えたところ
+
+中継そのもの（ヘッダの引き継ぎ、`host` を落とすこと、jsonrpc の封筒、
+`result` / `structuredContent` の剥がし方、上流が ok でなければそのステータスで
+素通しすること、payload に `error` があれば 502、`cache-control: no-store`）は
+SvelteKit 版と同じ。違うのは次の 4 点だけ。
+
+1. **`/health` を足した。** 移行前は未 deploy の `src/app.ts` にしか無かった。
+   上流も binding も要らないので「動かない経路」ではなく、deploy された面が
+   答えていることを外から確かめられるようになる。
+2. **404 と、上流に到達できなかったときの応答を JSON にした。** SvelteKit は
+   framework の HTML エラーページを返していた。`mcp.etzhayyim.com` は NXDOMAIN
+   なので**中継の既定の結末は到達失敗**であり、それを 200 でも HTML でも隠さず
+   `502 {\"error\":\"MCP router unreachable\"}` を返す。
+3. **`x-etzhayyim-bff` の値を `sveltekit-edge-bff` → `cljs-worker` に変えた。**
+   名乗りは事実なので嘘にしない。`APP_FRAMEWORK` も同時に `cljs-esm-worker` へ。
+4. **`wrangler.jsonc` から 3 つのブロックを外した。** `assets`（消える
+   SvelteKit client dir を指していた）/ `rules` の `CompiledWasm`（tree の
+   `.wasm` は **0 件**）/ `compatibility_flags` の `nodejs_compat` `nodejs_als`
+   （`adapter-cloudflare` の要件。**外したうえで flag 無しの workerd で実際に
+   答えることを確かめた** —— 下記）。
+
+`migration.edn` も意図的に変えた: `:identity :allowed-additions` に移行が足した
+14 ファイルを加えた。README が自分で課している「ファイルを足したらそのリストに
+足す」という規則に従ったもので、検証器の `:additions-match-allowed` が
+**継承 20 ファイル以外の全部**がそのリストと一致することを機械で守る。
+
+## 検証（この ADR を書いた時点で実際に通したもの）
+
+- `air-dcs.route-test`: **7 tests / 37 assertions、0 failures**（nbb、ビルド不要）
+- ページ描画 → design-quality **100.00 / 100**（gate 95 PASS）
+- `scripts/verify-docs-claims.cljs`: **25 claim すべて PASS、exit 0**
+- `shadow-cljs release worker`: 55 files / 12 compiled / **0 warnings** / 51.80s、
+  `dist/worker.js` 254,640 バイト
+- `scripts/smoke-worker.cljs`: **30 項目 PASS、exit 0**（ビルド済み bundle を
+  import して叩く。**deploy される成果物に触る唯一の検査**）
+- `wrangler dev --local`（wrangler 4.69.0、**compat flag 無し**）: GET / 200 /
+  GET /health 200 / POST /xrpc/ 400 / OPTIONS 204 / GET /nope 404 /
+  POST /xrpc/a/b 502 / GET /_app/meta 404。bundle 由来の runtime エラーは 0 件
+  （log の ERROR 1 行は NXDOMAIN な router への外向き fetch で、handler が
+  捕まえて 502 にしている）。**workerd が返したページは採点したページと
+  sha256 が同一**（`f0a4013a…`、83,466 バイト）
+- 各 gate を**先に赤くしてから**緑を受け取った（quickstart §9 に 15 の mutation と
+  それが落とした検査の対応表。狙いを外して緑が返った 2 件も、実演に数えずに記録した）
+
+## 測って分かった、この移行では直さないこと
+
+- **4 つのホストが全部 NXDOMAIN**: `air-dcs.etzhayyim.com` /
+  `a1rd3cs0.etzhayyim.com`（wrangler の route）/ `mcp.etzhayyim.com`（中継先）/
+  `dispatcher.etzhayyim.com`（持ち越さず）。apex `etzhayyim.com` だけが解決する。
+  deploy するか retire するかは別の決定。
+- **`did:web:air-dcs.etzhayyim.com` は解決しない**（同じ理由）。
+- **`kotodama.jsonld` の `@context` は 404。**
+- **4 つのメソッド語彙が食い違う**: `wrangler.jsonc` と `kotodama.jsonld` が 3、
+  `src/app.ts`（撤去）が 8、`kotoba/` が 17。移行は前 2 者が**一致している**
+  ことだけを検査する（`:capabilities-agree-across-config`）。
+- **`kotoba/` の 2 つの盲目のテストと、計算しない `computeLoadSheet`。**
+
+## Consequences
+
+- appview の TypeScript / Svelte / JavaScript は **5 本から 0 本**、正本言語
+  （`.cljs`/`.cljc`）は **0 本から 4 本**になった。この 2 つは検証器の claim
+  なので、TS が戻れば落ちる —— 撤去した 9 パスに戻る場合
+  （`:removed-by-migration-absent`）も、別名で入る場合
+  （`:appview-ts-or-svelte-files`）も、別々の claim が捕まえる。
+- 継承した 11 ファイル（55,370 バイト）は 1 バイトも変わっていない。
+- `:warnings-as-errors` は `:compiler-options` に置き、検証器は**置き場所を
+  EDN として読んで**確かめる（grep ではない —— shadow-cljs.edn のコメント自身が
+  両方の語を含むので、部分文字列の検査は間違った置き場所でも通ってしまう）。
+"}]

@@ -1,0 +1,31 @@
+;; The air-dcs appview Worker. :esm, mirroring cloud-itonami-marketplace-listing,
+;; cloud-itonami/app-lo, /app-ongakuka, /app-analytics and gftdcojp/nexus-x402.
+;;
+;; wrangler.jsonc's main points at dist/worker.js, which is THIS bundle compiled
+;; from the source in src/. That is the whole point of the migration recorded in
+;; docs/adr/0001: before it, main pointed at svelte/.svelte-kit/cloudflare/_worker.js
+;; -- a path with zero matching tracked files, which nothing in the tree builds --
+;; while src/app.ts, the file that reads like the application, was referenced by no
+;; tracked file at all.
+;;
+;; :warnings-as-errors is not decoration. shadow treats an undeclared or renamed
+;; var as a WARNING, so `shadow-cljs release worker` exits 0 while writing a bundle
+;; that throws on its first request. "The build succeeded" is therefore not a check
+;; at all -- it cannot fail. Demonstrated in THIS repo before landing this line
+;; (docs/operator-quickstart.md S4).
+;;
+;; The key lives under :compiler-options, NOT :build-options -- shadow reads
+;; [:compiler-options :warnings-as-errors] (shadow.build.compiler/should-warning-throw?).
+;; Under :build-options it is silently ignored, which is the very failure this
+;; option exists to prevent: a fix that cannot fail. scripts/verify-docs-claims.cljs
+;; asserts the placement by PARSING this file as EDN, not by grepping it -- a grep
+;; would be satisfied by the comment you are reading.
+{:deps {:aliases [:cljs]}
+ :builds
+ {:worker
+  {:target :esm
+   :output-dir "dist"
+   :modules {:worker {:exports {default air-dcs.worker/handler}}}
+   :compiler-options {:output-feature-set :es2020
+                      :infer-externs :auto
+                      :warnings-as-errors true}}}}
