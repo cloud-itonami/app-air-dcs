@@ -1,6 +1,6 @@
 (ns air-dcs.route-test
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [air-dcs.route :as route]
             [air-dcs.view :as view]))
 
