@@ -22,7 +22,7 @@
 (def root (or (first (remove #(str/starts-with? % "--") *command-line-args*)) "."))
 
 (def claims
-  {:tracked-files 25
+  {:tracked-files 26
    :preserved-bytes 55370              ; 移行が 1 バイトも触っていない 11 ファイル
    :appview-ts-or-svelte-files 0
    :kotoba-ts-files 5                  ; 移行対象外の参照実装スライス（README §「kotoba/ は移していない」）
