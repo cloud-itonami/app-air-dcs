@@ -130,7 +130,7 @@ SvelteKit 版と同じ。違うのは次の 4 点だけ。
 - `air-dcs.route-test`: **7 tests / 37 assertions、0 failures**（nbb、ビルド不要）
 - ページ描画 → design-quality **100.00 / 100**（gate 95 PASS）
 - `scripts/verify-docs-claims.cljs`: **25 claim すべて PASS、exit 0**
-- `shadow-cljs release worker`: 55 files / 12 compiled / **0 warnings** / 51.80s、
+- `amu compile --target wasm32-browser worker`: 55 files / 12 compiled / **0 warnings** / 51.80s、
   `dist/worker.js` 254,640 バイト
 - `scripts/smoke-worker.cljs`: **30 項目 PASS、exit 0**（ビルド済み bundle を
   import して叩く。**deploy される成果物に触る唯一の検査**）

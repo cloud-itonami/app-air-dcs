@@ -27,7 +27,7 @@ walk していないと書いてある**（§7 の `kotoba/`）。
 git clone git@github.com:cloud-itonami/app-air-dcs.git
 cd app-air-dcs
 REPO=$PWD
-npx --yes nbb scripts/verify-docs-claims.cljs .        # <dir> は先頭に置く
+npx --yes kbb --backend sci scripts/verify-docs-claims.cljk .        # <dir> は先頭に置く
 ```
 
 実際の出力（先頭と末尾）:
@@ -92,7 +92,7 @@ cat > /tmp/dcs-run.cljs <<'EOF'
 (require '[cljs.test :refer [run-tests]] 'air-dcs.route-test)
 (run-tests 'air-dcs.route-test)
 EOF
-npx --yes nbb --classpath "$CP" /tmp/dcs-run.cljs
+npx --yes kbb --backend sci --classpath "$CP" /tmp/dcs-run.cljs
 ```
 
 実際の出力:
@@ -132,10 +132,10 @@ cat > /tmp/dcs-render.cljs <<'EOF'
                   :actor route/actor-did}))
   (println "wrote" (.-size (.statSync fs out)) "bytes to" out))
 EOF
-npx --yes nbb --classpath "$CP" /tmp/dcs-render.cljs "$DDS/resources/jp_go_dds/dds.css" /tmp/dcs-page.html
+npx --yes kbb --backend sci --classpath "$CP" /tmp/dcs-render.cljs "$DDS/resources/jp_go_dds/dds.css" /tmp/dcs-page.html
 
 K=~/github/com-junkawasaki/orgs/kotoba-lang
-cd $K/design-quality && npx --yes nbb -m design-quality.cli score /tmp/dcs-page.html --min 95
+cd $K/design-quality && npx --yes kbb --backend sci -m design-quality.cli score /tmp/dcs-page.html --min 95
 ```
 
 実際の出力:
@@ -173,7 +173,7 @@ resource governor）。直接叩かず、必ず guard 経由で:
 ```bash
 cd "$REPO"
 node ~/github/com-junkawasaki/scripts/resource-guard.mjs run build -- \
-  npx --yes shadow-cljs release worker
+  npx --yes amu compile --target wasm32-browser worker
 ls -la dist/worker.js && shasum -a 256 dist/worker.js
 ```
 
@@ -224,7 +224,7 @@ grep では駄目である（`shadow-cljs.edn` のコメント自身が両方の
 `APP_CAPABILITIES` の JSON decode** は、ビルドを通って初めて存在する。
 
 ```bash
-cd "$REPO" && npx --yes nbb scripts/smoke-worker.cljs dist/worker.js
+cd "$REPO" && npx --yes kbb --backend sci scripts/smoke-worker.cljk dist/worker.js
 ```
 
 実際の出力（30 行すべて PASS、抜粋）:
