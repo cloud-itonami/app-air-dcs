@@ -111,3 +111,35 @@
       (is (= "application/json" (get h "content-type")))
       (is (= "com.a.b" (get h "x-etzhayyim-xrpc-method")))
       (is (= "cljs-worker" (get h "x-etzhayyim-bff"))))))
+
+(deftest static-edition-advertises-only-what-exists
+  ;; 静的版（IPFS）には Worker が居ない。`/health` も `/xrpc/:nsid` も中継先も
+  ;; env も存在しないので、ページに出てはならない。opts に**わざと渡して**から
+  ;; 不在を見る —— 渡さずに不在を見る検査は、静的版が何を無視しても落ちない。
+  ;; 対になる Worker 版の検査（同じ opts で全部出る）が、印が描画経路に載る
+  ;; ことを保証する。
+  (let [methods (route/capability-nsids ["processCheckIn" "processBoardingPass" "acceptBaggage"])
+        opts {:css "/*x*/" :routes route/routes
+              :methods methods
+              :vars [:APP_CAPABILITIES :APP_NANOID :AGENTGATEWAY_MCP_ROUTER_URL]
+              :mcp-url (route/mcp-router-url {})
+              :actor route/actor-did
+              :built-at "BUILT-AT-SENTINEL"}
+        static (view/render (assoc opts :static? true))
+        worker (view/render opts)
+        absent ["/xrpc" "/health" "mcp.etzhayyim.com"
+                "APP_CAPABILITIES" "APP_NANOID" "AGENTGATEWAY_MCP_ROUTER_URL"
+                "BUILT-AT-SENTINEL"]]
+    (testing "静的版は存在しないものを広告しない（時刻も焼かない）"
+      (doseq [s absent]
+        (is (not (str/includes? static s)) (str s " が静的版に出ている"))))
+    (testing "静的版は宣言されたメソッドと、自分が何であるかを出す"
+      (doseq [m methods]
+        (is (str/includes? static m) (str m " が静的版に出ていない")))
+      (is (str/includes? static route/actor-did))
+      (is (str/includes? static "ipns://"))
+      (is (str/includes? static "Worker 版にしか無い")))
+    (testing "Worker 版は同じ opts で全部出す（印が描画経路に載っている）"
+      (doseq [s (cons "/xrpc/:nsid" (rest absent))]
+        (is (str/includes? worker s) (str s " が Worker 版に出ていない")))
+      (is (not (str/includes? worker "ipns://"))))))

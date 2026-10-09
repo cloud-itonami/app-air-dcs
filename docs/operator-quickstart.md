@@ -34,7 +34,7 @@ npx --yes kbb --backend sci scripts/verify-docs-claims.cljk .        # <dir> は
 
 ```
 SCANNED	25
-PASS	tracked-files	expected=25	actual=25
+PASS	tracked-files	expected=27	actual=27
 PASS	preserved-bytes	expected=55370	actual=55370
 PASS	preserved-files-unchanged	expected=[]	actual=[]
 PASS	removed-by-migration-absent	expected=[]	actual=[]
@@ -100,7 +100,7 @@ npx --yes kbb --backend sci --classpath "$CP" /tmp/dcs-run.cljs
 ```
 Testing air-dcs.route-test
 
-Ran 7 tests containing 37 assertions.
+Ran 9 tests containing 66 assertions.
 0 failures, 0 errors.
 ```
 
