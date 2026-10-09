@@ -57,13 +57,14 @@ route は `[...path]`（rest parameter）だったので `/xrpc/a/b` は nsid `"
 `/xrpc/`）だけが 400 `Missing XRPC method` で、文言も SvelteKit 版のままである。
 **絞るのは移行ではなく方針変更**なので、やるなら別の決定として記録する。
 
-## いま在るもの — 25 ファイル
+## いま在るもの — 28 ファイル
 
 | 面 | ファイル |
 |---|---|
 | 判断・描画・edge | `src/air_dcs/{route.cljc, view.cljc, worker.cljs}` |
-| テスト | `test/air_dcs/route_test.cljc`（7 tests / 37 assertions） |
+| テスト | `test/air_dcs/route_test.cljc`（9 tests / 66 assertions） |
 | 検査スクリプト（nbb） | `scripts/{smoke-worker.cljs, verify-docs-claims.cljs}` |
+| 静的版の描画 | `scripts/render-static.kotoba` |
 | ビルド | `deps.edn` / `shadow-cljs.edn` / `.gitignore` |
 | Worker 設定 | `wrangler.jsonc` |
 | actor 記述子 | `kotodama.jsonld` |
@@ -230,6 +231,34 @@ deploy 先も中継先も、いま存在しない。したがって `kotodama.js
    が記録した scan は、除去すべきパターンを**一つも検出していない**。
 5. **`NOTICE` が参照する `CHARTER-RIDER.md` はこの repo に無い**（upstream 側）。
 
+## Static edition (IPFS)
+
+Published name: `ipns://k51qzi5uqu5divtf94y04zn2y3zhnbq8ok2ih7z2n7u1wmzw2du4m0qjrmzv24` (recorded with the site CID in `kotoba.app.edn`). Public HTTPS entrance: `https://k51qzi5uqu5divtf94y04zn2y3zhnbq8ok2ih7z2n7u1wmzw2du4m0qjrmzv24.ipns.220-146-170-114.sslip.io/`.
+
+Worker とは別に、説明ページの**静的版**を描ける。IPFS に content-addressed で
+置く版で、正準のアドレスは `ipns://` の名前（`{k51…}.ipns` の gateway origin
+でも読める）、DNS 名はその別名にすぎない。Worker 版は並行して deploy された
+ままで、この版のための変更はその出力を 1 バイトも変えない（`:static?` が
+無ければ従来どおり描く）。
+
+静的版には Worker が居ないので、`/health` も `/xrpc/:nsid` も中継先も env の
+キーも**出さない**。route 表は `:route/kind :page` のものだけを描き、
+「XRPC の中継は Worker 版にしか無い」と書く。宣言された XRPC メソッドは出す
+—— Worker が var として受け取る `APP_CAPABILITIES` を、ビルド時に
+`wrangler.jsonc` から読む（手で写さない。読めなければ exit 2 で何も書かない）。
+テスト（`static-edition-advertises-only-what-exists`）が、同じ opts を渡した
+うえで静的版に出ないこと・Worker 版に出ることを対で検査する。
+
+```bash
+K=~/github/com-junkawasaki/orgs/kotoba-lang
+DDS=$K/jp-go-digital-design-system \
+  kbb --backend sci --classpath "src:$K/jp-go-digital-design-system/src:$K/html/src:$K/css/src" \
+  scripts/render-static.kotoba          # → dist/static/index.html（git 管理外）
+```
+
+出力は決定論的である（時刻も env も読まない）。2 回描いて sha256 が一致する
+ことを確かめてから publish する。
+
 ## 検証
 
 ```bash
@@ -241,7 +270,7 @@ exit 0 = 全一致 / 1 = 食い違い / **2 = 判定できなかった**（0 と
 
 | 何を | どこで踏めるか | 2026-08-18 の実測 |
 |---|---|---|
-| テスト（ビルド不要） | quickstart §2 | 7 tests / 37 assertions、0 failures |
+| テスト（ビルド不要） | quickstart §2 | 9 tests / 66 assertions、0 failures（2026-10-09 再実測） |
 | ページの採点 | quickstart §3 | 100.00 / 100、gate 95 PASS |
 | bundle のビルド | quickstart §4 | 55 files / 12 compiled / 0 warnings / 51.80s、254,640 バイト |
 | **ビルド済み bundle を叩く** | quickstart §5 | 30 項目 PASS、exit 0 |

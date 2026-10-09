@@ -1,0 +1,77 @@
+#!/usr/bin/env kbb
+;; render-static — 説明ページの静的版を描いて dist/static/index.html に書く。
+;;
+;; 静的版は IPFS に content-addressed で置く版で、Worker を持たない
+;; （ipns:// の名前が正準のアドレスで、DNS 名はその別名）。Worker 版は並行して
+;; deploy されたままであり、この script はそれに触らない。
+;;
+;; 出力は決定論的でなければならない —— 同じ tree から同じ CID が出なければ、
+;; content-addressed に置く意味が無い。だから時刻もホスト名も env も読まない。
+;; 読むのは tree（src/ と wrangler.jsonc）と DADS の CSS だけである。
+;;
+;; Usage:  DDS=<jp-go-digital-design-system> \
+;;         kbb --backend sci --classpath "src:$DDS/src:$K/html/src:$K/css/src" \
+;;           scripts/render-static.kotoba [<out>]          （既定 dist/static/index.html）
+;; Exit:   0 書いた · 2 書けなかった（CSS が無い・wrangler.jsonc が読めない等。
+;;         半端な成果物を静的版として残さない）
+
+(require '["node:fs" :as fs] '["node:path" :as path]
+         '[nbb.core :refer [load-file await]]
+         '[kotoba.lang.text :as str])
+
+;; src/ は `.kotoba` だが、kbb の sci door（org-babashka-nbb）の名前空間解決は
+;; `.cljk` / `.cljs` / `.cljc` しか探さない（実測: `require` は
+;; 『Could not find namespace』で落ちる）。依存順に load-file すれば、後続の
+;; `require` は読み込み済みの名前空間を見つける。
+(await (load-file "src/air_dcs/route.kotoba"))
+(await (load-file "src/air_dcs/view.kotoba"))
+(require '[air-dcs.route :as route] '[air-dcs.view :as view])
+
+(defn- undetermined! [m]
+  (println (str "UNDETERMINED\t" m))
+  (js/process.exit 2))
+
+(def out
+  (or (first (remove #(str/starts-with? % "--") *command-line-args*))
+      "dist/static/index.html"))
+
+(def css-path
+  "Worker が `shadow.resource/inline` で焼くのと同じ resource
+  （jp_go_dds/dds.css）。静的版だけ別の CSS を持つと、2 つの版の見た目が
+  黙ってずれる。"
+  (str (or (.-DDS js/process.env)
+           (str (.-HOME js/process.env)
+                "/github/com-junkawasaki/orgs/kotoba-lang/jp-go-digital-design-system"))
+       "/resources/jp_go_dds/dds.css"))
+
+(def methods
+  "APP_CAPABILITIES を**ビルド時に wrangler.jsonc から**読む —— Worker が var
+  として受け取るのと同じ宣言で、手で写したリストではない（写しこそが、route 2 本を
+  宣言する設定の隣で `routes: []` を印字した移行前のページの作り方である）。
+  形を決めるのは Worker の decode と同じ `route/capability-nsids`。
+
+  Worker と違い、読めない宣言を「宣言なし」として描かない。Worker は生きている
+  ページの他の事実を見せるために縮退するが、空の表を黙って publish するビルドは
+  正しい CID を持った間違った版になる。"
+  (let [raw (try (.readFileSync fs "wrangler.jsonc" "utf8")
+                 (catch :default e (undetermined! (str "wrangler.jsonc unreadable: " (.-message e)))))
+        j (try (.parse js/JSON (str/replace raw #"(?m)^\s*//.*$" ""))
+               (catch :default e (undetermined! (str "wrangler.jsonc is not JSON once comments are stripped: " (.-message e)))))
+        caps (some-> j .-vars .-APP_CAPABILITIES)
+        v (try (js->clj (.parse js/JSON caps))
+               (catch :default e (undetermined! (str "vars.APP_CAPABILITIES is not a JSON array: " (pr-str caps)))))]
+    (when-not (and (sequential? v) (seq v))
+      (undetermined! (str "vars.APP_CAPABILITIES declares nothing: " (pr-str caps))))
+    (route/capability-nsids v)))
+
+(when-not (.existsSync fs css-path)
+  (undetermined! (str "no DADS CSS at " css-path " (set DDS)")))
+
+(let [html (view/render {:css (.readFileSync fs css-path "utf8")
+                         :routes route/routes
+                         :methods methods
+                         :actor route/actor-did
+                         :static? true})]
+  (.mkdirSync fs (.dirname path out) #js {:recursive true})
+  (.writeFileSync fs out html)
+  (println (str "WROTE\t" out "\t" (.-length html) " chars\t" (count methods) " methods")))
