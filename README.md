@@ -57,7 +57,7 @@ route は `[...path]`（rest parameter）だったので `/xrpc/a/b` は nsid `"
 `/xrpc/`）だけが 400 `Missing XRPC method` で、文言も SvelteKit 版のままである。
 **絞るのは移行ではなく方針変更**なので、やるなら別の決定として記録する。
 
-## いま在るもの — 27 ファイル
+## いま在るもの — 28 ファイル
 
 | 面 | ファイル |
 |---|---|
@@ -232,6 +232,8 @@ deploy 先も中継先も、いま存在しない。したがって `kotodama.js
 5. **`NOTICE` が参照する `CHARTER-RIDER.md` はこの repo に無い**（upstream 側）。
 
 ## Static edition (IPFS)
+
+Published name: `ipns://k51qzi5uqu5divtf94y04zn2y3zhnbq8ok2ih7z2n7u1wmzw2du4m0qjrmzv24` (recorded with the site CID in `kotoba.app.edn`). Public HTTPS entrance: `https://k51qzi5uqu5divtf94y04zn2y3zhnbq8ok2ih7z2n7u1wmzw2du4m0qjrmzv24.ipns.220-146-170-114.sslip.io/`.
 
 Worker とは別に、説明ページの**静的版**を描ける。IPFS に content-addressed で
 置く版で、正準のアドレスは `ipns://` の名前（`{k51…}.ipns` の gateway origin
